@@ -391,7 +391,7 @@ class MotionControlThread:
                 logger.warning(f"Motion thread error sending command: {error_str}")
 
                 # Immediately return for device not configured errors
-                if "Device not configured" in error_str or "Errno 6" in error_str:
+                if "Device not configured" in error_str or "Errno 6" in error_str or "Connection to remote host was lost" in error_str or "socket is already closed" in error_str:
                     logger.error(f"Motion thread: Device configuration error detected: {error_str}")
                     state.stop_requested = True
                     state.conn = None
