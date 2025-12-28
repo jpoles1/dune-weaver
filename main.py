@@ -250,6 +250,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Pydantic models for request/response validation
 class ConnectRequest(BaseModel):
     port: Optional[str] = None
+    ip: Optional[str] = None
 
 class auto_playModeRequest(BaseModel):
     enabled: bool
@@ -332,6 +333,7 @@ class AppSettingsUpdate(BaseModel):
 
 class ConnectionSettingsUpdate(BaseModel):
     preferred_port: Optional[str] = None
+    preferred_ip: Optional[str] = None
 
 class PatternSettingsUpdate(BaseModel):
     clear_pattern_speed: Optional[int] = None
@@ -499,7 +501,8 @@ async def get_all_settings():
             "custom_logo": state.custom_logo
         },
         "connection": {
-            "preferred_port": state.preferred_port
+            "preferred_port": state.preferred_port,
+            "preferred_ip": state.preferred_ip
         },
         "patterns": {
             "clear_pattern_speed": state.clear_pattern_speed,
@@ -584,6 +587,9 @@ async def update_settings(settings_update: SettingsUpdate):
         if settings_update.connection.preferred_port is not None:
             port = settings_update.connection.preferred_port
             state.preferred_port = None if port in ("", "none") else port
+        if settings_update.connection.preferred_ip is not None:
+            ip = settings_update.connection.preferred_ip
+            state.preferred_ip = None if ip in ("", "none") else ip
         updated_categories.append("connection")
 
     # Pattern settings
@@ -886,9 +892,12 @@ async def list_ports():
 @app.post("/connect")
 async def connect(request: ConnectRequest):
     if not request.port:
-        state.conn = connection_manager.WebSocketConnection('ws://fluidnc.local:81')
+        # Use provided IP, preferred IP, or default to fluidnc.local
+        ip = request.ip or state.preferred_ip or 'fluidnc.local'
+        ws_url = f'ws://{ip}:81'
+        state.conn = connection_manager.WebSocketConnection(ws_url)
         connection_manager.device_init()
-        logger.info('Successfully connected to websocket ws://fluidnc.local:81')
+        logger.info(f'Successfully connected to websocket {ws_url}')
         return {"success": True}
 
     try:

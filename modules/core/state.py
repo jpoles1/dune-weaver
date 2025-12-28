@@ -60,6 +60,7 @@ class AppState:
         self.conn = None
         self.port = None
         self.preferred_port = None  # User's preferred port for auto-connect
+        self.preferred_ip = None  # User's preferred FluidNC IP address
         self.wled_ip = None
         self.led_provider = "none"  # "wled", "dw_leds", or "none"
         self.led_controller = None
@@ -251,6 +252,7 @@ class AppState:
             "custom_clear_from_out": self.custom_clear_from_out,
             "port": self.port,
             "preferred_port": self.preferred_port,
+            "preferred_ip": self.preferred_ip,
             "wled_ip": self.wled_ip,
             "led_provider": self.led_provider,
             "dw_led_num_leds": self.dw_led_num_leds,
@@ -317,6 +319,7 @@ class AppState:
         self.custom_clear_from_out = data.get("custom_clear_from_out", None)
         self.port = data.get("port", None)
         self.preferred_port = data.get("preferred_port", None)
+        self.preferred_ip = data.get("preferred_ip", None)
         self.wled_ip = data.get('wled_ip', None)
         self.led_provider = data.get('led_provider', "none")
         self.dw_led_num_leds = data.get('dw_led_num_leds', 60)

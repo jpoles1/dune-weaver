@@ -391,6 +391,64 @@ input:checked + .slider:before {
           </p>
         </label>
       </div>
+      <!-- FluidNC Network Connection -->
+      <div class="px-6 py-5">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-slate-700 text-sm font-medium leading-normal flex items-center gap-2">
+            <span class="material-icons text-slate-600 text-base">wifi</span>
+            FluidNC Network Connection
+          </span>
+          <div class="flex gap-3 items-center">
+            <input
+              type="text"
+              id="fluidncIpInput"
+              placeholder="fluidnc.local or IP address"
+              class="form-input flex-1 resize-none overflow-hidden rounded-lg text-slate-900 focus:outline-0 focus:ring-2 focus:ring-sky-500 border border-slate-300 bg-white focus:border-sky-500 h-10 placeholder:text-slate-400 px-4 text-base font-medium leading-normal transition-colors"
+            />
+            <button
+              id="connectFluidncButton"
+              class="flex items-center justify-center gap-2 min-w-[100px] cursor-pointer rounded-lg h-10 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium leading-normal tracking-[0.015em] transition-colors flex-shrink-0"
+            >
+              <span class="material-icons text-lg">wifi</span>
+              <span class="truncate">Connect</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">
+            Enter the IP address or hostname of your FluidNC device (default port 81). Leave empty to use fluidnc.local.
+          </p>
+        </label>
+      </div>
+      <!-- Preferred FluidNC IP Configuration -->
+      <div class="px-6 py-5">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-slate-700 text-sm font-medium leading-normal flex items-center gap-2">
+            <span class="material-icons text-slate-600 text-base">star</span>
+            Preferred FluidNC IP for Auto-Connect
+          </span>
+          <div class="flex gap-3 items-center">
+            <input
+              type="text"
+              id="preferredFluidncIpInput"
+              placeholder="fluidnc.local or IP address"
+              class="form-input flex-1 resize-none overflow-hidden rounded-lg text-slate-900 focus:outline-0 focus:ring-2 focus:ring-sky-500 border border-slate-300 bg-white focus:border-sky-500 h-10 placeholder:text-slate-400 px-4 text-base font-medium leading-normal transition-colors"
+            />
+            <button
+              id="savePreferredFluidncIp"
+              class="flex items-center justify-center gap-2 min-w-[100px] cursor-pointer rounded-lg h-10 px-4 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium leading-normal tracking-[0.015em] transition-colors flex-shrink-0"
+            >
+              <span class="material-icons text-lg">save</span>
+              <span class="truncate">Save</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">
+            When no serial ports are available, this FluidNC IP will be used automatically on startup. If set to empty, network auto-connect will be disabled.
+          </p>
+          <p id="currentPreferredFluidncIp" class="text-xs text-sky-600 mt-1 hidden">
+            <span class="material-icons text-xs align-middle">check_circle</span>
+            <span id="preferredFluidncIpDisplay"></span>
+          </p>
+        </label>
+      </div>
     </div>
   </section>
   <!-- Homing Configuration Section -->

@@ -388,6 +388,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const scheduledPauseData = settings.scheduled_pause || { enabled: false, time_slots: [] };
         const preferredPortData = { preferred_port: settings.connection?.preferred_port };
 
+        // Update preferred FluidNC IP input and display
+        const preferredFluidncIpInput = document.getElementById('preferredFluidncIpInput');
+        const currentPreferredFluidncIp = document.getElementById('currentPreferredFluidncIp');
+        const preferredFluidncIpDisplay = document.getElementById('preferredFluidncIpDisplay');
+
+        if (preferredFluidncIpInput && settings.connection?.preferred_ip) {
+            preferredFluidncIpInput.value = settings.connection.preferred_ip;
+            if (currentPreferredFluidncIp && preferredFluidncIpDisplay) {
+                preferredFluidncIpDisplay.textContent = `Currently set to: ${settings.connection.preferred_ip}`;
+                currentPreferredFluidncIp.classList.remove('hidden');
+            }
+        } else if (currentPreferredFluidncIp) {
+            currentPreferredFluidncIp.classList.add('hidden');
+        }
+
         // Store full settings for other initialization functions
         window.unifiedSettings = settings;
         // Update connection status
@@ -787,6 +802,74 @@ function setupEventListeners() {
     const savePreferredPortButton = document.getElementById('savePreferredPort');
     if (savePreferredPortButton) {
         savePreferredPortButton.addEventListener('click', savePreferredPort);
+    }
+
+    // FluidNC connect button
+    const connectFluidncButton = document.getElementById('connectFluidncButton');
+    if (connectFluidncButton) {
+        connectFluidncButton.addEventListener('click', async () => {
+            const fluidncIpInput = document.getElementById('fluidncIpInput');
+            const ip = fluidncIpInput?.value?.trim() || '';
+
+            try {
+                const response = await fetch('/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: ip || undefined })
+                });
+                
+                if (response.ok) {
+                    logMessage('Connected to FluidNC successfully', LOG_TYPE.SUCCESS);
+                    await updateSerialStatus(true); // Force update after connecting
+                } else {
+                    throw new Error('Failed to connect to FluidNC');
+                }
+            } catch (error) {
+                logMessage(`Error connecting to FluidNC: ${error.message}`, LOG_TYPE.ERROR);
+            }
+        });
+    }
+
+    // Save preferred FluidNC IP button
+    const savePreferredFluidncIpButton = document.getElementById('savePreferredFluidncIp');
+    if (savePreferredFluidncIpButton) {
+        savePreferredFluidncIpButton.addEventListener('click', async () => {
+            const preferredFluidncIpInput = document.getElementById('preferredFluidncIpInput');
+            if (!preferredFluidncIpInput) return;
+
+            const preferredIp = preferredFluidncIpInput.value?.trim() || null;
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connection: { preferred_ip: preferredIp } })
+                });
+
+                if (response.ok) {
+                    await response.json();
+                    const currentPreferredFluidncIp = document.getElementById('currentPreferredFluidncIp');
+                    const preferredFluidncIpDisplay = document.getElementById('preferredFluidncIpDisplay');
+
+                    if (preferredIp) {
+                        showStatusMessage(`Preferred FluidNC IP set to: ${preferredIp}`, 'success');
+                        if (currentPreferredFluidncIp && preferredFluidncIpDisplay) {
+                            preferredFluidncIpDisplay.textContent = `Currently set to: ${preferredIp}`;
+                            currentPreferredFluidncIp.classList.remove('hidden');
+                        }
+                    } else {
+                        showStatusMessage('Preferred FluidNC IP cleared - will use fluidnc.local on startup', 'success');
+                        if (currentPreferredFluidncIp) {
+                            currentPreferredFluidncIp.classList.add('hidden');
+                        }
+                    }
+                } else {
+                    throw new Error('Failed to save preferred FluidNC IP');
+                }
+            } catch (error) {
+                showStatusMessage(`Failed to save preferred FluidNC IP: ${error.message}`, 'error');
+            }
+        });
     }
 
     // Save custom clear patterns button

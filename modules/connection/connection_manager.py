@@ -230,12 +230,15 @@ def connect_device(homing=True):
     elif state.port and state.port in ports:
         logger.info(f"Connecting to last used port: {state.port}")
         state.conn = SerialConnection(state.port)
-    elif ports:
-        logger.info(f"Connecting to first available port: {ports[0]}")
-        state.conn = SerialConnection(ports[0])
+    elif state.preferred_ip:
+        ws_url = f'ws://{state.preferred_ip}:81'
+        logger.info(f"No serial ports available, trying FluidNC WebSocket: {ws_url}")
+        try:
+            state.conn = WebSocketConnection(ws_url)
+        except Exception as e:
+            logger.error(f"Failed to connect to FluidNC WebSocket {ws_url}: {e}")
     else:
-        logger.error("Auto connect failed: No serial ports available")
-        # state.conn = WebSocketConnection('ws://fluidnc.local:81')
+        logger.error("Auto connect failed: No serial ports available and no preferred FluidNC IP set")
 
     if (state.conn.is_connected() if state.conn else False):
         # Check for alarm state and unlock if needed before initializing
@@ -457,55 +460,52 @@ def get_machine_steps(timeout=10):
     while time.time() - start_time < timeout and not settings_complete:
         try:
             # Attempt to read a line from the connection
-            if state.conn.in_waiting() > 0:
-                response = state.conn.readline()
-                logger.debug(f"Raw response: {response}")
-                
-                # Process the line
-                if response.strip():  # Only process non-empty lines
-                    for line in response.splitlines():
-                        line = line.strip()
-                        logger.debug(f"Config response: {line}")
-                        if line.startswith("$100="):
-                            x_steps_per_mm = float(line.split("=")[1])
-                            state.x_steps_per_mm = x_steps_per_mm
-                            logger.info(f"X steps per mm: {x_steps_per_mm}")
-                        elif line.startswith("$101="):
-                            y_steps_per_mm = float(line.split("=")[1])
-                            state.y_steps_per_mm = y_steps_per_mm
-                            logger.info(f"Y steps per mm: {y_steps_per_mm}")
-                        elif line.startswith("$22="):
-                            # $22 reports if the homing cycle is enabled
-                            # returns 0 if disabled, 1 if enabled
-                            # Note: We only log this, we don't overwrite state.homing
-                            # because user preference (saved in state.json) should take precedence
-                            firmware_homing = int(line.split('=')[1])
-                            logger.info(f"Firmware homing setting ($22): {firmware_homing}, using user preference: {state.homing}")
-                
-                # Check if we've received all the settings we need
-                if x_steps_per_mm is not None and y_steps_per_mm is not None:
-                    settings_complete = True
-            else:
-                # No data waiting, small sleep to prevent CPU thrashing
-                time.sleep(0.1)
-                
-                # If it's taking too long, try sending the command again after 3 seconds
-                elapsed = time.time() - start_time
-                if elapsed > 3 and elapsed < 4:
-                    logger.warning("No response yet, sending $$ command again")
-                    state.conn.send("$$\n")
-
+            response = state.conn.readline()
+            logger.debug(f"Raw response: {response}")
+            
+            # Process the line
+            if response.strip():  # Only process non-empty lines
+                for line in response.splitlines():
+                    line = line.strip()
+                    logger.debug(f"Config response: {line}")
+                    if line.startswith("$100="):
+                        x_steps_per_mm = float(line.split("=")[1])
+                        state.x_steps_per_mm = x_steps_per_mm
+                        logger.info(f"X steps per mm: {x_steps_per_mm}")
+                    elif line.startswith("$101="):
+                        y_steps_per_mm = float(line.split("=")[1])
+                        state.y_steps_per_mm = y_steps_per_mm
+                        logger.info(f"Y steps per mm: {y_steps_per_mm}")
+                    elif line.startswith("$22="):
+                        # $22 reports if the homing cycle is enabled
+                        # returns 0 if disabled, 1 if enabled
+                        # Note: We only log this, we don't overwrite state.homing
+                        # because user preference (saved in state.json) should take precedence
+                        firmware_homing = int(line.split('=')[1])
+                        logger.info(f"Firmware homing setting ($22): {firmware_homing}, using user preference: {state.homing}")
+            
+            # Check if we've received all the settings we need
+            if x_steps_per_mm is not None and y_steps_per_mm is not None:
+                settings_complete = True
         except Exception as e:
             logger.error(f"Error getting machine steps: {e}")
             time.sleep(0.5)
-    
+        
+        # Small sleep to prevent CPU thrashing
+        time.sleep(0.1)
+        
+        # If it's taking too long, try sending the command again after 3 seconds
+        elapsed = time.time() - start_time
+        if elapsed > 3 and elapsed < 4:
+            logger.warning("No response yet, sending $$ command again")
+            state.conn.send("$$\n")
     # Process results and determine table type
     if settings_complete:
         if y_steps_per_mm == 180 and x_steps_per_mm == 256:
             state.table_type = 'dune_weaver_mini'
-        if y_steps_per_mm == 210 and x_steps_per_mm == 256:
+        elif y_steps_per_mm == 210 and x_steps_per_mm == 256:
             state.table_type = 'dune_weaver_mini_pro_byj'
-        if y_steps_per_mm == 270 and x_steps_per_mm == 200:
+        elif y_steps_per_mm == 270 and x_steps_per_mm == 200:
             state.table_type = 'dune_weaver_gold'
         elif y_steps_per_mm == 287:
             state.table_type = 'dune_weaver'
