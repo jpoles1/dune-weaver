@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block title %}Spirograph Generator - {{ app_name or 'Dune Weaver' }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-1 flex-col gap-8 px-4 py-5 max-w-5xl mx-auto w-full">
+  <!-- Header -->
+  <div class="flex flex-col gap-3">
+    <h1 class="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
+      <span class="material-icons align-middle text-3xl">layers</span>
+      Spirograph Generator
+    </h1>
+    <p class="text-base text-slate-500 dark:text-slate-400">
+      Generate mathematical spirograph patterns for your sand table. Choose from presets or create custom patterns.
+    </p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+    <button id="tab-presets" class="tab-button active px-4 py-2 font-medium text-sm border-b-2 transition-colors">
+      Presets
+    </button>
+    <button id="tab-custom" class="tab-button px-4 py-2 font-medium text-sm border-b-2 border-transparent transition-colors">
+      Custom
+    </button>
+  </div>
+
+  <!-- Preset Tab -->
+  <div id="preset-section" class="tab-content">
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">Choose a Preset</h2>
+      
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Select Preset Pattern
+        </label>
+        <select id="preset-select" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200">
+          <option value="">-- Select a preset --</option>
+        </select>
+      </div>
+
+      <div id="preset-info" class="mb-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg hidden">
+        <h3 class="font-medium text-slate-900 dark:text-slate-100 mb-2">Pattern Details</h3>
+        <div id="preset-details" class="text-sm text-slate-600 dark:text-slate-400"></div>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Filename
+        </label>
+        <div class="flex gap-2">
+          <input
+            id="preset-filename"
+            type="text"
+            placeholder="my-spirograph"
+            class="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200"
+          />
+          <span class="flex items-center text-slate-500 dark:text-slate-400">.thr</span>
+        </div>
+      </div>
+
+      <button
+        id="generate-preset-btn"
+        class="w-full px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+        disabled
+      >
+        Generate Pattern
+      </button>
+    </div>
+  </div>
+
+  <!-- Custom Tab -->
+  <div id="custom-section" class="tab-content hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">Custom Pattern</h2>
+
+      <!-- Pattern Type -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Pattern Type
+        </label>
+        <select id="pattern-type" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200">
+          <option value="hypotrochoid">Hypotrochoid (Inner Spirograph)</option>
+          <option value="epitrochoid">Epitrochoid (Outer Spirograph)</option>
+          <option value="rose">Rose Curve</option>
+          <option value="lissajous">Lissajous Figure</option>
+        </select>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" id="pattern-type-help">
+          Classic spirograph with small circle rolling inside large circle
+        </p>
+      </div>
+
+      <!-- Dynamic Parameters -->
+      <div id="params-hypotrochoid" class="params-section">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              R (Fixed Circle)
+            </label>
+            <input type="number" id="param-R" value="1.0" step="0.01" min="0.1" max="2"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Typically 1.0</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              r (Rolling Circle)
+            </label>
+            <input type="number" id="param-r" value="0.25" step="0.01" min="0.01" max="1"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Try 0.2-0.5</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              d (Pen Distance)
+            </label>
+            <input type="number" id="param-d" value="0.5" step="0.01" min="0.01" max="2"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Try 0.5-1.5 × r</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="params-rose" class="params-section hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              n (Petals)
+            </label>
+            <input type="number" id="param-n" value="5" step="1" min="1" max="20"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Number of petals</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              d (Denominator)
+            </label>
+            <input type="number" id="param-rose-d" value="1" step="1" min="1" max="10"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Usually 1</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="params-lissajous" class="params-section hidden">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              a (X Frequency)
+            </label>
+            <input type="number" id="param-a" value="3" step="0.1" min="0.1" max="10"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Try 2-7</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              b (Y Frequency)
+            </label>
+            <input type="number" id="param-b" value="4" step="0.1" min="0.1" max="10"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Try 2-7</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              δ (Phase Shift)
+            </label>
+            <input type="number" id="param-delta" value="0" step="0.1" min="0" max="6.28"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">0 to 2π (6.28)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Common Parameters -->
+      <div class="border-t border-slate-200 dark:border-slate-700 pt-4 mb-4">
+        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Common Settings</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Points
+            </label>
+            <input type="number" id="param-points" value="2000" step="100" min="100" max="10000"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">More = smoother</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Scale
+            </label>
+            <input type="number" id="param-scale" value="0.95" step="0.05" min="0.1" max="1"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">0.1 to 1.0</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Center Offset
+            </label>
+            <input type="number" id="param-offset" value="0" step="0.05" min="0" max="0.5"
+              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200" />
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">0 to 0.5</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filename -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Filename
+        </label>
+        <div class="flex gap-2">
+          <input
+            id="custom-filename"
+            type="text"
+            placeholder="my-custom-spirograph"
+            class="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-slate-700 dark:text-slate-200"
+          />
+          <span class="flex items-center text-slate-500 dark:text-slate-400">.thr</span>
+        </div>
+      </div>
+
+      <button
+        id="generate-custom-btn"
+        class="w-full px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition-colors"
+      >
+        Generate Custom Pattern
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Messages -->
+  <div id="status-message" class="hidden p-4 rounded-lg"></div>
+
+  <!-- Info Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+      <h3 class="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-100 mb-2">
+        <span class="material-icons text-base">info</span>
+        What is a Spirograph?
+      </h3>
+      <p class="text-sm text-blue-800 dark:text-blue-200">
+        A spirograph is a pattern created by tracing a point on a circle as it rolls around another circle.
+        Hypotrochoids roll inside, epitrochoids roll outside. Experiment with different parameters for unique designs!
+      </p>
+    </div>
+    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+      <h3 class="flex items-center gap-2 font-semibold text-green-900 dark:text-green-100 mb-2">
+        <span class="material-icons text-base">tips_and_updates</span>
+        Quick Tips
+      </h3>
+      <ul class="text-sm text-green-800 dark:text-green-200 space-y-1">
+        <li>• Smaller r values create more petals</li>
+        <li>• Adjust d for different petal shapes</li>
+        <li>• Use scale < 1.0 to stay within bounds</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Tab switching
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const presetSection = document.getElementById('preset-section');
+  const customSection = document.getElementById('custom-section');
+
+  document.getElementById('tab-presets').addEventListener('click', () => {
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('tab-presets').classList.add('active');
+    presetSection.classList.remove('hidden');
+    customSection.classList.add('hidden');
+  });
+
+  document.getElementById('tab-custom').addEventListener('click', () => {
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('tab-custom').classList.add('active');
+    customSection.classList.remove('hidden');
+    presetSection.classList.add('hidden');
+  });
+
+  // Load presets
+  async function loadPresets() {
+    try {
+      const response = await fetch('/api/spirograph/presets');
+      const data = await response.json();
+      
+      const select = document.getElementById('preset-select');
+      select.innerHTML = '<option value="">-- Select a preset --</option>';
+      
+      data.presets.forEach(preset => {
+        const option = document.createElement('option');
+        option.value = preset;
+        option.textContent = preset.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        select.appendChild(option);
+      });
+
+      // Store preset details
+      window.presetDetails = data.preset_details;
+    } catch (error) {
+      console.error('Failed to load presets:', error);
+    }
+  }
+
+  // Show preset info
+  document.getElementById('preset-select').addEventListener('change', (e) => {
+    const presetName = e.target.value;
+    const generateBtn = document.getElementById('generate-preset-btn');
+    const infoDiv = document.getElementById('preset-info');
+    const detailsDiv = document.getElementById('preset-details');
+
+    if (!presetName) {
+      generateBtn.disabled = true;
+      infoDiv.classList.add('hidden');
+      return;
+    }
+
+    generateBtn.disabled = false;
+    const preset = window.presetDetails[presetName];
+    
+    let detailsHtml = `<p><strong>Type:</strong> ${preset.type}</p><p><strong>Parameters:</strong></p><ul class="list-disc list-inside">`;
+    for (const [key, value] of Object.entries(preset.params)) {
+      detailsHtml += `<li>${key}: ${value}</li>`;
+    }
+    detailsHtml += '</ul>';
+    
+    detailsDiv.innerHTML = detailsHtml;
+    infoDiv.classList.remove('hidden');
+
+    // Auto-fill filename
+    document.getElementById('preset-filename').value = presetName;
+  });
+
+  // Pattern type descriptions
+  const typeDescriptions = {
+    hypotrochoid: 'Classic spirograph with small circle rolling inside large circle',
+    epitrochoid: 'Small circle rolling outside a large circle',
+    rose: 'Rose curve with n petals (equation: r = cos(n/d * θ))',
+    lissajous: 'Complex figure-eight patterns from harmonic oscillations'
+  };
+
+  // Handle pattern type change
+  document.getElementById('pattern-type').addEventListener('change', (e) => {
+    const type = e.target.value;
+    document.getElementById('pattern-type-help').textContent = typeDescriptions[type];
+
+    // Show/hide parameter sections
+    document.querySelectorAll('.params-section').forEach(section => {
+      section.classList.add('hidden');
+    });
+
+    const activeSection = document.getElementById(`params-${type}`);
+    if (activeSection) {
+      activeSection.classList.remove('hidden');
+    }
+  });
+
+  // Generate preset
+  document.getElementById('generate-preset-btn').addEventListener('click', async () => {
+    const presetName = document.getElementById('preset-select').value;
+    const filename = document.getElementById('preset-filename').value;
+
+    if (!presetName || !filename) {
+      showStatus('Please select a preset and enter a filename', 'error');
+      return;
+    }
+
+    showStatus('Generating pattern...', 'info');
+
+    try {
+      const response = await fetch('/api/spirograph/generate-preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset_name: presetName, filename })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showStatus(`✓ ${data.message}`, 'success');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      } else {
+        showStatus(`Error: ${data.detail}`, 'error');
+      }
+    } catch (error) {
+      showStatus(`Failed to generate: ${error.message}`, 'error');
+    }
+  });
+
+  // Generate custom
+  document.getElementById('generate-custom-btn').addEventListener('click', async () => {
+    const patternType = document.getElementById('pattern-type').value;
+    const filename = document.getElementById('custom-filename').value;
+
+    if (!filename) {
+      showStatus('Please enter a filename', 'error');
+      return;
+    }
+
+    const payload = {
+      pattern_type: patternType,
+      filename,
+      num_points: parseInt(document.getElementById('param-points').value),
+      scale: parseFloat(document.getElementById('param-scale').value),
+      center_offset: parseFloat(document.getElementById('param-offset').value)
+    };
+
+    // Add type-specific parameters
+    if (patternType === 'hypotrochoid' || patternType === 'epitrochoid') {
+      payload.R = parseFloat(document.getElementById('param-R').value);
+      payload.r = parseFloat(document.getElementById('param-r').value);
+      payload.d = parseFloat(document.getElementById('param-d').value);
+    } else if (patternType === 'rose') {
+      payload.n = parseInt(document.getElementById('param-n').value);
+      payload.rose_d = parseInt(document.getElementById('param-rose-d').value);
+    } else if (patternType === 'lissajous') {
+      payload.a = parseFloat(document.getElementById('param-a').value);
+      payload.b = parseFloat(document.getElementById('param-b').value);
+      payload.delta = parseFloat(document.getElementById('param-delta').value);
+    }
+
+    showStatus('Generating custom pattern...', 'info');
+
+    try {
+      const response = await fetch('/api/spirograph/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showStatus(`✓ ${data.message}`, 'success');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      } else {
+        showStatus(`Error: ${data.detail}`, 'error');
+      }
+    } catch (error) {
+      showStatus(`Failed to generate: ${error.message}`, 'error');
+    }
+  });
+
+  function showStatus(message, type) {
+    const statusDiv = document.getElementById('status-message');
+    statusDiv.textContent = message;
+    statusDiv.classList.remove('hidden', 'bg-blue-100', 'bg-green-100', 'bg-red-100', 
+                                'text-blue-800', 'text-green-800', 'text-red-800',
+                                'dark:bg-blue-900/20', 'dark:bg-green-900/20', 'dark:bg-red-900/20',
+                                'dark:text-blue-200', 'dark:text-green-200', 'dark:text-red-200');
+    
+    if (type === 'success') {
+      statusDiv.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900/20', 'dark:text-green-200');
+    } else if (type === 'error') {
+      statusDiv.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900/20', 'dark:text-red-200');
+    } else {
+      statusDiv.classList.add('bg-blue-100', 'text-blue-800', 'dark:bg-blue-900/20', 'dark:text-blue-200');
+    }
+
+    if (type !== 'info') {
+      setTimeout(() => statusDiv.classList.add('hidden'), 5000);
+    }
+  }
+
+  // Tab styling
+  const style = document.createElement('style');
+  style.textContent = `
+    .tab-button {
+      color: #64748b;
+      border-color: transparent;
+    }
+    .tab-button:hover {
+      color: #334155;
+    }
+    .tab-button.active {
+      color: #0c7ff2;
+      border-color: #0c7ff2;
+    }
+    .dark .tab-button {
+      color: #94a3b8;
+    }
+    .dark .tab-button:hover {
+      color: #cbd5e1;
+    }
+    .dark .tab-button.active {
+      color: #38bdf8;
+      border-color: #38bdf8;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Initialize
+  loadPresets();
+</script>
+{% endblock %}

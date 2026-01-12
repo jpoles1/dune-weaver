@@ -26,6 +26,8 @@ import math
 from modules.core.cache_manager import generate_all_image_previews, get_cache_path, generate_image_preview, get_pattern_metadata
 from modules.core.version_manager import version_manager
 from modules.core.log_handler import init_memory_handler, get_memory_handler
+from modules.spiro import SpirographGenerator, SpirographType
+from modules.spiro.generator import SPIROGRAPH_PRESETS
 import json
 import base64
 import time
@@ -325,6 +327,29 @@ class ThetaRhoRequest(BaseModel):
 
 class GetCoordinatesRequest(BaseModel):
     file_name: str
+
+class SpirographGenerateRequest(BaseModel):
+    pattern_type: str  # "hypotrochoid", "epitrochoid", "rose", "lissajous"
+    filename: str
+    # Common parameters
+    num_points: Optional[int] = 2000
+    scale: Optional[float] = 0.95
+    center_offset: Optional[float] = 0.0
+    # Hypotrochoid/Epitrochoid parameters
+    R: Optional[float] = None
+    r: Optional[float] = None
+    d: Optional[float] = None
+    # Rose curve parameters
+    n: Optional[int] = None
+    rose_d: Optional[int] = None  # Using rose_d to avoid conflict with 'd' parameter
+    # Lissajous parameters
+    a: Optional[float] = None
+    b: Optional[float] = None
+    delta: Optional[float] = None
+
+class SpirographPresetRequest(BaseModel):
+    preset_name: str
+    filename: str
 
 # ============================================================================
 # Unified Settings Models
@@ -1508,6 +1533,178 @@ async def serve_preview(encoded_filename: str):
         headers=headers
     )
 
+# ============================================================================
+# Spirograph Generation Endpoints
+# ============================================================================
+
+@app.get("/api/spirograph/presets")
+async def get_spirograph_presets():
+    """Get list of available spirograph presets."""
+    return {
+        "presets": list(SPIROGRAPH_PRESETS.keys()),
+        "preset_details": SPIROGRAPH_PRESETS
+    }
+
+@app.post("/api/spirograph/generate")
+async def generate_spirograph(request: SpirographGenerateRequest):
+    """
+    Generate a spirograph pattern and save as THR file.
+    
+    Pattern types:
+    - hypotrochoid: Small circle rolling inside large circle (R, r, d required)
+    - epitrochoid: Small circle rolling outside large circle (R, r, d required)
+    - rose: Rose curve pattern (n, rose_d required)
+    - lissajous: Lissajous figure (a, b, delta optional)
+    """
+    try:
+        generator = SpirographGenerator(output_dir=pattern_manager.THETA_RHO_DIR)
+        
+        # Build parameters dict
+        params = {
+            "num_points": request.num_points,
+            "scale": request.scale,
+            "center_offset": request.center_offset
+        }
+        
+        # Validate and add type-specific parameters
+        pattern_type = SpirographType(request.pattern_type)
+        
+        if pattern_type in [SpirographType.HYPOTROCHOID, SpirographType.EPITROCHOID]:
+            if request.R is None or request.r is None or request.d is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{request.pattern_type} requires R, r, and d parameters"
+                )
+            params.update({"R": request.R, "r": request.r, "d": request.d})
+        
+        elif pattern_type == SpirographType.ROSE:
+            if request.n is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="rose pattern requires n parameter"
+                )
+            params["n"] = request.n
+            if request.rose_d is not None:
+                params["d"] = request.rose_d
+        
+        elif pattern_type == SpirographType.LISSAJOUS:
+            if request.a is None or request.b is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="lissajous pattern requires a and b parameters"
+                )
+            params.update({"a": request.a, "b": request.b})
+            if request.delta is not None:
+                params["delta"] = request.delta
+        
+        # Generate and save the pattern
+        filename = request.filename
+        if not filename.endswith('.thr'):
+            filename += '.thr'
+        
+        # Save to spirographs subdirectory
+        spirograph_dir = os.path.join(pattern_manager.THETA_RHO_DIR, "spirographs")
+        os.makedirs(spirograph_dir, exist_ok=True)
+        
+        # Generate coordinates
+        if pattern_type == SpirographType.HYPOTROCHOID:
+            coordinates = generator.generate_hypotrochoid(**params)
+        elif pattern_type == SpirographType.EPITROCHOID:
+            coordinates = generator.generate_epitrochoid(**params)
+        elif pattern_type == SpirographType.ROSE:
+            coordinates = generator.generate_rose(**params)
+        elif pattern_type == SpirographType.LISSAJOUS:
+            coordinates = generator.generate_lissajous(**params)
+        
+        # Save to file
+        filepath = os.path.join(spirograph_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            for theta, rho in coordinates:
+                f.write(f"{theta:.5f} {rho:.5f}\n")
+        
+        logger.info(f"Generated spirograph pattern: {filepath}")
+        
+        # Generate preview
+        relative_path = f"spirographs/{filename}"
+        await generate_image_preview(relative_path)
+        
+        return {
+            "success": True,
+            "filename": relative_path,
+            "points": len(coordinates),
+            "message": f"Generated {request.pattern_type} pattern with {len(coordinates)} points"
+        }
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to generate spirograph: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/spirograph/generate-preset")
+async def generate_spirograph_from_preset(request: SpirographPresetRequest):
+    """Generate a spirograph pattern from a preset configuration."""
+    try:
+        if request.preset_name not in SPIROGRAPH_PRESETS:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Preset '{request.preset_name}' not found"
+            )
+        
+        preset = SPIROGRAPH_PRESETS[request.preset_name]
+        generator = SpirographGenerator(output_dir=pattern_manager.THETA_RHO_DIR)
+        
+        # Save to spirographs subdirectory
+        spirograph_dir = os.path.join(pattern_manager.THETA_RHO_DIR, "spirographs")
+        os.makedirs(spirograph_dir, exist_ok=True)
+        
+        # Generate pattern
+        pattern_type = preset["type"]
+        params = preset["params"]
+        
+        if pattern_type == SpirographType.HYPOTROCHOID:
+            coordinates = generator.generate_hypotrochoid(**params)
+        elif pattern_type == SpirographType.EPITROCHOID:
+            coordinates = generator.generate_epitrochoid(**params)
+        elif pattern_type == SpirographType.ROSE:
+            coordinates = generator.generate_rose(**params)
+        elif pattern_type == SpirographType.LISSAJOUS:
+            coordinates = generator.generate_lissajous(**params)
+        
+        # Save to file
+        filename = request.filename
+        if not filename.endswith('.thr'):
+            filename += '.thr'
+        
+        filepath = os.path.join(spirograph_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            for theta, rho in coordinates:
+                f.write(f"{theta:.5f} {rho:.5f}\n")
+        
+        logger.info(f"Generated spirograph preset '{request.preset_name}': {filepath}")
+        
+        # Generate preview
+        relative_path = f"spirographs/{filename}"
+        await generate_image_preview(relative_path)
+        
+        return {
+            "success": True,
+            "filename": relative_path,
+            "preset": request.preset_name,
+            "points": len(coordinates),
+            "message": f"Generated '{request.preset_name}' preset with {len(coordinates)} points"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate spirograph preset: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# End Spirograph Endpoints
+# ============================================================================
+
 @app.post("/send_coordinate")
 async def send_coordinate(request: CoordinateRequest):
     if not (state.conn.is_connected() if state.conn else False):
@@ -2359,6 +2556,10 @@ async def playlists(request: Request):
 @app.get("/image2sand")
 async def image2sand(request: Request):
     return templates.TemplateResponse("image2sand.html", {"request": request, "app_name": state.app_name, "custom_logo": state.custom_logo})
+
+@app.get("/spirograph")
+async def spirograph_page(request: Request):
+    return templates.TemplateResponse("spirograph.html", {"request": request, "app_name": state.app_name, "custom_logo": state.custom_logo})
 
 @app.get("/led")
 async def led_control_page(request: Request):
