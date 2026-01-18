@@ -307,11 +307,11 @@ class MotionControlThread:
     def _execute_move(self, command: MotionCommand):
         """Execute a move command in the motion thread."""
         try:
-            # Wait if paused
-            while self.paused and self.running:
+            # Wait if paused (but exit immediately on stop request)
+            while self.paused and self.running and not state.stop_requested:
                 time.sleep(0.1)
 
-            if not self.running:
+            if not self.running or state.stop_requested:
                 return
 
             # Execute the actual motion using sync version
@@ -376,16 +376,44 @@ class MotionControlThread:
 
         # Track overall attempt time
         overall_start_time = time.time()
+        max_retry_duration = 5.0  # Give up after 5 seconds of retries
 
         while True:
+            # Check if stop was requested - allow immediate exit on device disconnect
+            if state.stop_requested or not state.conn:
+                logger.debug("Motion thread: Stop requested or connection lost, exiting send loop")
+                if not state.conn:
+                    state.is_connected = False
+                return False
+            
+            # Check if we've exceeded maximum retry duration
+            if time.time() - overall_start_time > max_retry_duration:
+                logger.error(f"Motion thread: Failed to get response after {max_retry_duration}s, giving up for X{x} Y{y}")
+                # Mark connection as potentially problematic and exit
+                state.stop_requested = True
+                return False
+            
             try:
+                # Safety check: ensure connection is still valid before attempting to use it
+                if state.conn is None:
+                    logger.error("Motion thread: Connection is None, cannot send command")
+                    state.is_connected = False
+                    return False
+                
                 gcode = f"$J=G91 G21 Y{y} F{speed}" if home else f"G1 G53 X{x} Y{y} F{speed}"
                 state.conn.send(gcode + "\n")
                 logger.debug(f"Motion thread sent command: {gcode}")
 
                 start_time = time.time()
                 while True:
-                    response = state.conn.readline()
+                    # Check stop request while waiting for response
+                    if state.stop_requested or not state.conn:
+                        logger.debug("Motion thread: Stop requested while waiting for response")
+                        if not state.conn:
+                            state.is_connected = False
+                        return False
+                    
+                    response = state.conn.readline() if state.conn else ""
                     logger.debug(f"Motion thread response: {response}")
                     if response.lower() == "ok":
                         logger.debug("Motion thread: Command execution confirmed.")
@@ -1153,8 +1181,18 @@ async def move_polar(theta, rho, speed=None):
     motion_controller.command_queue.put(command)
     logger.debug(f"Queued motion command: theta={theta}, rho={rho}, speed={speed}")
 
-    # Wait for command completion
-    await future
+    # Wait for command completion with timeout to prevent indefinite hangs
+    try:
+        await asyncio.wait_for(future, timeout=10.0)
+    except asyncio.TimeoutError:
+        logger.warning(f"Motion command timed out: theta={theta}, rho={rho}")
+        # Check if stop was requested - if so, it's expected
+        if state.stop_requested:
+            logger.debug("Motion timeout occurred during stop sequence - this is expected")
+        else:
+            # Unexpected timeout - mark as error and stop
+            logger.error("Unexpected motion timeout - stopping pattern")
+            state.stop_requested = True
     
 def pause_execution():
     """Pause pattern execution using asyncio Event."""
