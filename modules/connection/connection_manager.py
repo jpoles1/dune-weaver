@@ -285,6 +285,11 @@ def check_and_unlock_alarm():
     try:
         logger.info("Checking device status for alarm state...")
 
+        # Check if connection is available
+        if not state.conn or not state.conn.is_connected():
+            logger.warning("No connection available for alarm check, proceeding anyway")
+            return True
+
         # Clear any pending data in buffer first
         while state.conn.in_waiting() > 0:
             state.conn.readline()
@@ -360,6 +365,11 @@ def get_status_response() -> str:
     """
     Send a status query ('?') and return the response if available.
     """
+    # Check if connection is available
+    if not state.conn or not state.conn.is_connected():
+        logger.warning("No connection available for status query")
+        return False
+    
     while True:
         try:
             state.conn.send('?')
@@ -408,6 +418,11 @@ async def send_grbl_coordinates(x, y, speed=600, timeout=30, home=False):
     Returns:
         True on success, False on timeout or error
     """
+    # Check if connection is available
+    if not state.conn or not state.conn.is_connected():
+        logger.warning(f"No connection available, cannot send G-code: X{x} Y{y}")
+        return False
+    
     logger.debug(f"Sending G-code: X{x} Y{y} at F{speed}")
 
     overall_start_time = time.time()
@@ -418,6 +433,11 @@ async def send_grbl_coordinates(x, y, speed=600, timeout=30, home=False):
         # Check overall timeout
         if time.time() - overall_start_time > timeout:
             logger.error(f"Timeout waiting for 'ok' response after {timeout}s")
+            return False
+
+        # Check if connection is still valid
+        if not state.conn or not state.conn.is_connected():
+            logger.error("Connection lost while sending G-code")
             return False
 
         try:
@@ -433,6 +453,11 @@ async def send_grbl_coordinates(x, y, speed=600, timeout=30, home=False):
                 # Check overall timeout
                 if time.time() - overall_start_time > timeout:
                     logger.error(f"Overall timeout waiting for 'ok' response")
+                    return False
+
+                # Check if connection is still valid while waiting
+                if not state.conn or not state.conn.is_connected():
+                    logger.error("Connection lost while waiting for response")
                     return False
 
                 response = await asyncio.to_thread(state.conn.readline)
@@ -1140,7 +1165,7 @@ def is_machine_idle() -> bool:
 
     try:
         state.conn.send('?')
-        response = state.conn.readline()
+        response = state.conn.readline() if state.conn else None
 
         if response and "Idle" in response:
             logger.debug("Machine status: Idle")
@@ -1157,6 +1182,11 @@ def get_machine_position(timeout=5):
     """
     Query the device for its position.
     """
+    # Check if connection is available
+    if not state.conn or not state.conn.is_connected():
+        logger.warning("No connection available for machine position query")
+        return None, None
+    
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
@@ -1179,6 +1209,10 @@ def get_machine_position(timeout=5):
 async def update_machine_position():
     if (state.conn.is_connected() if state.conn else False):
         try:
+            if not state.conn or not state.conn.is_connected():
+                logger.debug("No connection available, skipping machine position update")
+                return
+            
             logger.info('Saving machine position')
             state.machine_x, state.machine_y = await asyncio.to_thread(get_machine_position)
             await asyncio.to_thread(state.save)
